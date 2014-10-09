@@ -1,7 +1,7 @@
 temporal-functions
 ==================
 
-Rewrite of the tempral function code from cepl.
+Rewrite of the temporal function code from cepl.
 
 Adds tlambda, tdefun & tdefvar along with a pile of related funcs and macros
 

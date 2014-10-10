@@ -2,22 +2,19 @@
 
 (in-package #:temporal-functions)
 
-
 (defun new-result (&key closed-vars start-test expire-test init body)
   `(,closed-vars (,start-test) (,expire-test) (,init) (,body)))
 
 
 (defun merge-results (results &optional first-overrides-body-form)
-  (let ((merged (reduce #'(lambda (x y) (mapcar (lambda (q w) (cons q w)) y x)) 
+  (let ((merged (reduce #'(λ mapcar #'cons %1 %)
                         results
                         :initial-value (make-list (length (first results))))))
     (if first-overrides-body-form
         (append (butlast merged) (list (last (first results)))))))
 
 (defun compile-and-merge (forms &optional (called-by-temporal-clause t))
-  (let ((results (mapcar (lambda (x) 
-                           (process-t-body x called-by-temporal-clause))
-                         forms)))
+  (let ((results (mapcar (λ process-t-body % called-by-temporal-clause) forms)))
     (merge-results results)))
 
 
@@ -39,8 +36,7 @@
         (expire-test-name (gensym "expired"))
         (init-name (gensym "init"))
         (advance-step (gensym "advance-step"))
-        (compiled-forms
-          (mapcar #'(lambda (x) (process-t-body x t)) forms))
+        (compiled-forms (mapcar #'(λ process-t-body % t) forms))
         (top (gensym "top")))
     (new-result
      :closed-vars `((,step-var 0))
@@ -50,6 +46,7 @@
                        (tagbody 
                           ,top                          
                           (case step
+                            ,(loop :for )
                             (0 (init-0 ,start-var) 
                                (incf step) 
                                (go ,top))
@@ -74,8 +71,7 @@
          (start-test-name (gensym "start"))
          (expire-test-name (gensym "expired"))
          (init-name (gensym "init-before"))
-         (compiled-body
-          (mapcar #'(lambda (x) (process-t-body x t)) body)))
+         (compiled-body (mapcar #'(λ process-t-body % t) body)))
     (merge-results
      (cons (new-result 
             :closed-vars `((,deadline-var ,deadline)

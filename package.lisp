@@ -1,5 +1,5 @@
 ;;;; package.lisp
 
 (defpackage #:temporal-functions
-  (:use #:cl))
+  (:use #:cl #:fn_))
 

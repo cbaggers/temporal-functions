@@ -2,9 +2,13 @@
 
 (asdf:defsystem #:temporal-functions
   :serial t
-  :description "Describe temporal-functions here"
-  :author "Your Name <your.name@example.com>"
-  :license "Specify license here"
+  :description "A means of creating functions that have an internal concept of time"
+  :author "Chris Bagley <techsnuffle@gmail.com>"
+  :license "2 Clause BSD"
+  :depends-on (#:macroexpand-dammit
+               #:alexandria
+               #:fn_)
   :components ((:file "package")
+               (:file "utils")
                (:file "temporal-functions")))
 

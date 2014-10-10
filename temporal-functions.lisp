@@ -2,13 +2,6 @@
 
 (in-package #:temporal-functions)
 
-;;; "temporal-functions" goes here. Hacks and glory await!
-
-(defun symb (&rest parts)
-  (intern (format nil "~{~a~}" parts)))
-
-(defun last-elm (list)
-  (car (last list)))
 
 (defun new-result (&key closed-vars start-test expire-test init body)
   `(,closed-vars (,start-test) (,expire-test) (,init) (,body)))

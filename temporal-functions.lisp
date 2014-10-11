@@ -2,24 +2,67 @@
 
 (in-package #:temporal-functions)
 
-(defun new-result (&key closed-vars start-test expire-test init body)
-  `(,closed-vars (,start-test) (,expire-test) (,init) (,body)))
+(defclass result () 
+  ((closed-vars :initarg :closed-vars :accessor closed-vars)
+   (start-test :initarg :start-test :accessor start-test)
+   (expire-test :initarg :expire-test :accessor expire-test)
+   (funcs :initarg :funcs :accessor funcs)
+   (init :initarg :init :accessor init)
+   (body :initarg :body :accessor body)))
 
+(defmacro with-compile-result (form &body wcr-body)
+  `(with-slots (closed-vars 
+                (start-tests start-test)
+                (expire-tests expire-test) 
+                funcs
+                (init-funcs init) body)
+       ,form
+     (declare (ignorable closed-vars start-tests expire-tests funcs
+                         init-funcs body))
+     ,@wcr-body))
+
+(defun new-result (&key closed-vars start-test expire-test funcs init body)
+  (make-instance 
+   'result 
+   :closed-vars closed-vars
+   :start-test (list start-test)
+   :expire-test (list expire-test)
+   :funcs funcs
+   :init (list init)
+   :body body))
+
+(defun empty-result ()  
+  (make-instance 'result :closed-vars nil :start-test nil
+                 :expire-test nil :funcs nil :init nil :body nil))
+
+(defun clean-result (result)
+  (setf (closed-vars result) (remove nil (closed-vars result))
+        (start-test result) (remove nil (start-test result))
+        (expire-test result) (remove nil (expire-test result))
+        (funcs result) (remove nil (funcs result))
+        (init result) (remove nil (init result)))
+  result)
 
 (defun merge-results (results &optional first-overrides-body-form)
-  (let ((merged (reduce #'(λ mapcar #'cons %1 %)
-                        results
-                        :initial-value (make-list (length (first results))))))
+  (let* ((result (empty-result)))
+    (setf (closed-vars result)
+          (remove-duplicates (mapcan #'closed-vars results)))
+    (setf (start-test result)
+          (remove-duplicates (mapcan #'start-test results)))
+    (setf (expire-test result)
+          (remove-duplicates (mapcan #'expire-test results)))
+    (setf (funcs result) 
+          (remove-duplicates (mapcan #'funcs results)))
+    (setf (init result) 
+          (remove-duplicates (mapcan #'init results)))
     (if first-overrides-body-form
-        (append (butlast merged) (list (last (first results)))))))
-
-(defun compile-and-merge (forms &optional (called-by-temporal-clause t))
-  (let ((results (mapcar (λ process-t-body % called-by-temporal-clause) forms)))
-    (merge-results results)))
-
+        (setf (body result) (body (first results)))
+        (setf (body result) (mapcan #'body results)))
+    (clean-result result)))
 
 (defparameter *temporal-clause-expanders*
   (make-hash-table))
+(defparameter *default-time-source* 'get-internal-real-time)
 (defparameter *time-var* '|time|)
 (defparameter *progress-var* '|progress|)
 
@@ -30,40 +73,49 @@
          ,@body)
        (setf (gethash ',name *temporal-clause-expanders*) #',ename))))
 
+(defun gen-then-step (compile-result step-num start-var top step-var)
+  (with-compile-result compile-result
+    (let ((init-name (caar init-funcs))
+          (expired-name (caar expire-tests)))
+      `((,step-num
+         (,init-name (,start-var)) 
+         (incf ,step-var) 
+         (go ,top))
+        (,(1+ step-num)
+          (if (,expired-name)
+              (progn (incf ,step-var) (go ,top))
+              (progn ,@body)))))))
+
 (def-t-expander then (&rest forms)
   (let ((step-var (gensym "step"))
         (start-var (gensym "start"))
         (expire-test-name (gensym "expired"))
         (init-name (gensym "init"))
         (advance-step (gensym "advance-step"))
-        (compiled-forms (mapcar #'(λ process-t-body % t) forms))
+        (compiled-forms (mapcar (λ process-t-body % t) forms))
         (top (gensym "top")))
-    (new-result
-     :closed-vars `((,step-var 0))
-     :expire-test `(,expire-test-name () (> ,step-var ,(1- (* 2 (length forms)))))
-     :init `(,init-name (start-time) (setf ,start-var start-time))
-     :body `(labels ((,advance-step ()
+    (merge-results
+     (cons (new-result
+            :closed-vars `((,step-var 0)
+                           (,start-var 0))
+            :expire-test `(,expire-test-name () (> ,step-var 
+                                                   ,(1- (* 2 (length forms)))))
+            :init `(,init-name (start-time) (setf ,start-var start-time))
+            :funcs `((,start-var () ,start-var)
+                     (,advance-step 
+                       ()
                        (tagbody 
                           ,top                          
-                          (case step
-                            ,(loop :for )
-                            (0 (init-0 ,start-var) 
-                               (incf step) 
-                               (go ,top))
-                            (1 (if (expired-0)
-                                   (progn (incf step) (go ,top))
-                                   (do-step-0)))
-                            (2 (init-1 (expired-0)) (incf step) (go ,top))
-                            (3 (if (expired-1)
-                                   (progn (incf step) (go ,top))
-                                   (do-step-1)))
-                            (4 (init-2 (expired-1)) (incf step) (go ,top))
-                            (5 (if (expired-2)
-                                   (progn (incf step) (go ,top))
-                                   (do-step-2)))))))
-              (,advance-step)))))
-
-
+                          (case ,step-var
+                            ,@(loop :for i :from 0 :by 2
+                                 :for s :in (cons start-var 
+                                                  (mapcar (λ caar (expire-test %))
+                                                          compiled-forms))
+                                 :for c :in compiled-forms :append
+                                 (gen-then-step c i s top step-var))))))
+            :body `((,advance-step)))
+           compiled-forms)
+     t)))
 
 (def-t-expander before (deadline &rest body)
   (let* ((start-var (gensym "before-start"))
@@ -71,52 +123,69 @@
          (start-test-name (gensym "start"))
          (expire-test-name (gensym "expired"))
          (init-name (gensym "init-before"))
-         (compiled-body (mapcar #'(λ process-t-body % t) body)))
+         (compiled-body (list (process-t-body body))))
     (merge-results
-     (cons (new-result 
-            :closed-vars `((,deadline-var ,deadline)
-                           (,start-var nil))
+     (cons (new-result
+            :closed-vars `((,deadline-var 0)
+                           (,start-var 0))
             :start-test `(,start-test-name () t)
             :expire-test `(,expire-test-name () (when (>= ,*time-var* ,deadline-var)
                                                   ,deadline-var))
-            :init `(,init-name (deadline start-time) ;; last argument is always time overflow
+            :init `(,init-name (start-time) ;; last argument is always time overflow
                                (setf ,start-var start-time
-                                     ,deadline-var deadline))
-            :body `(when (not (,expire-test-name))
-                     (let ((,*progress-var* 
-                            (float (- 1.0 (/ (- ,deadline-var ,*time-var*)
-                                             (- ,deadline-var ,start-var)))))))
-                     ,@(last compiled-body)))
+                                     ,deadline-var (+ start-time ,deadline)))
+            :body `((when (not (,expire-test-name))
+                       (let ((,*progress-var* 
+                              (float (- 1.0 (/ (- ,deadline-var ,*time-var*)
+                                               (- ,deadline-var ,start-var))))))
+                         (declare (ignorable ,*progress-var*))
+                         ,@(body (first compiled-body))))))
+           compiled-body)
+     t)))
+
+(def-t-expander after (delay &rest body)
+  (let* ((after-var (gensym "after-delay"))
+         (start-test-name (gensym "start"))
+         (expire-test-name (gensym "expired"))
+         (init-name (gensym "init-after"))
+         (compiled-body (list (process-t-body body))))
+    (merge-results
+     (cons (new-result
+            :closed-vars `((,after-var 0))
+            :start-test `(,start-test-name () (when (>= ,*time-var* ,after-var)
+                                                ,after-var))
+            :expire-test `(,expire-test-name () nil)
+            :init `(,init-name (start-time) ;; last argument is always time overflow
+                               (setf ,after-var (+ start-time ,delay)))
+            :body `((when (not (,expire-test-name))
+                      (let ((,*progress-var* 1))
+                         (declare (ignorable ,*progress-var*))
+                         ,@(body (first compiled-body))))))
            compiled-body)
      t)))
 
 (defun process-t-body (form &optional called-by-temporal-clause)
   (declare (ignore called-by-temporal-clause))
-  (cond ((atom form) form)
-        ((eql (first form) 'quote) form)
+  (cond ((atom form) (new-result :body (list form)))
+        ((eql (first form) 'quote) (new-result :body (list form)))
         (t (let ((tmp (gethash (first form) *temporal-clause-expanders*)))
              (if tmp
                  (apply tmp (rest form))
-                 (mapcar #'process-t-body form))))))
-
-
-(defmacro with-compile-result (form &body body)
-  `(destructuring-bind (closed-vars start-tests expire-tests init-funcs body)
-       ,form
-     (declare (ignorable closed-vars start-tests expire-tests init-funcs body))
-     ,@body))
+                 (merge-results (mapcar #'process-t-body form)))))))
 
 (defmacro tfun (name args &body body)
   (let* ((expand-macros nil)
          (expanded-body (macroexpand-dammit:macroexpand-dammit 
-                         `(macrolet ,expand-macros ,@body))))
+                         `(macrolet ,expand-macros ,body))))
     (with-compile-result (process-t-body expanded-body)
       `(let ,closed-vars
          (,@(if name `(defun ,name) '(lambda)) ,args
-            (labels (,@start-tests
-                     ,@expire-tests
-                     ,@init-funcs)
-              ,@body))))))
+            (let ((,*time-var* (,*default-time-source*)))
+              (labels (,@start-tests
+                       ,@expire-tests
+                       ,@init-funcs
+                       ,@funcs)
+                ,@body)))))))
 
 ;; outside of tfun there are functions (or macros) for before, after between 
 ;; etc which create tlambdas.

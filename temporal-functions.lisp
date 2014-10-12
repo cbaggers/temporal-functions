@@ -64,6 +64,7 @@
   (make-hash-table))
 (defparameter *default-time-source* 'get-internal-real-time)
 (defparameter *time-var* '|time|)
+(defparameter *init-arg* '|start-time|)
 (defparameter *progress-var* '|progress|)
 
 (defmacro def-t-expander (name args &body body)
@@ -71,7 +72,7 @@
     `(progn
        (defun ,ename ,args
          ,@body)
-       (setf (gethash ',name *temporal-clause-expanders*) #',ename))))
+       (setf (gethash ,(kwd name) *temporal-clause-expanders*) #',ename))))
 
 (defun gen-then-step (compile-result step-num start-var top step-var)
   (with-compile-result compile-result
@@ -100,7 +101,7 @@
                            (,start-var 0))
             :expire-test `(,expire-test-name () (> ,step-var 
                                                    ,(1- (* 2 (length forms)))))
-            :init `(,init-name (start-time) (setf ,start-var start-time))
+            :init `(,init-name (,*init-arg*) (setf ,start-var ,*init-arg*))
             :funcs `((,start-var () ,start-var)
                      (,advance-step 
                       ()
@@ -131,9 +132,9 @@
             :start-test `(,start-test-name () t)
             :expire-test `(,expire-test-name () (when (>= ,*time-var* ,deadline-var)
                                                   ,deadline-var))
-            :init `(,init-name (start-time) ;; last argument is always time overflow
-                               (setf ,start-var start-time
-                                     ,deadline-var (+ start-time ,deadline)))
+            :init `(,init-name (,*init-arg*) ;; last argument is always time overflow
+                               (setf ,start-var ,*init-arg*
+                                     ,deadline-var (+ ,*init-arg* ,deadline)))
             :body `(when (not (,expire-test-name))
                      (let ((,*progress-var* 
                             (float (- 1.0 (/ (- ,deadline-var ,*time-var*)
@@ -155,9 +156,9 @@
             :start-test `(,start-test-name () (when (>= ,*time-var* ,after-var)
                                                 ,after-var))
             :expire-test `(,expire-test-name () nil)
-            :init `(,init-name (start-time) ;; last argument is always time overflow
-                               (setf ,after-var (+ start-time ,delay)))
-            :body `(when (not (,expire-test-name))
+            :init `(,init-name (,*init-arg*) ;; last argument is always time overflow
+                               (setf ,after-var (+ ,*init-arg* ,delay)))
+            :body `(when (and (not (,expire-test-name)) (,start-test-name))
                      (let ((,*progress-var* 1))
                        (declare (ignorable ,*progress-var*))
                        (progn ,@(mapcar #'body compiled-body)))))
@@ -171,24 +172,6 @@
          (apply (gethash (first form) *temporal-clause-expanders*) (rest form)))
         (t (new-result :body form))))
 
-(defmacro tfun (name args &body body)
-  (let* ((expand-macros nil)
-         (expanded-body (macroexpand-dammit:macroexpand-dammit 
-                         `(macrolet ,expand-macros ,body)))
-         (first-run (gensym "first")))
-    (let ((compiled (mapcar #'process-t-body expanded-body)))
-      `(let (,@(mapcan #'closed-vars compiled)
-             (,first-run nil))
-         (,@(if name `(defun ,name) '(lambda)) ,args            
-            (let ((,*time-var* (,*default-time-source*)))
-              (labels (,@(mapcan #'start-test compiled)
-                       ,@(mapcan #'expire-test compiled)
-                       ,@(mapcan #'init compiled)
-                       ,@(mapcan #'funcs compiled))
-                (when ,first-run ,@(mapcar (λ list (caar (init %)) *time-var*)
-                                           compiled))
-                ,(improve-readability `(progn ,@(mapcar #'body compiled))))))))))
-
 (defun improve-readability (form)
   (cond ((atom form) form)
         ((and (eql 'progn (first form)) (= (length form) 2))
@@ -197,9 +180,63 @@
                  (improve-readability (rest form))))))
 
 
-;; outside of tfun there are functions (or macros) for before, after between 
-;; etc which create tlambdas.
-;; So tfun doesnt infinitely recurse, each temporal clause must has a defmacro
-;; that expands to an alternate but equivilent symbol
+(defun tbody (compiled)
+  `(let ((,*time-var* (,*default-time-source*)))
+     (labels (,@(mapcan #'start-test compiled)
+              ,@(mapcan #'expire-test compiled)
+                ,@(mapcan #'init compiled)
+                ,@(mapcan #'funcs compiled))                
+       (prog1
+           ,(improve-readability `(progn ,@(mapcar #'body compiled)))
+         (when (and ,@(loop :for c :in compiled
+                         :collect `(,(caar (start-test c)))
+                         :collect `(,(caar (expire-test c)))))
+           (signal-expired))))))
 
+(defun tcompile (body)
+  (mapcar #'process-t-body
+          (macroexpand-dammit:macroexpand-dammit 
+           `(macrolet ((before (&body b) `(:before ,@b))
+                       (after (&body b) `(:after ,@b))
+                       (then (&body b) `(:then ,@b)))
+              ,body))))
 
+(defun t-init-base (compiled)
+  (subst `(,*default-time-source*) *init-arg*
+         (mapcan #'cddar (mapcar #'init compiled))))
+
+(defmacro tlambda (args &body body)  
+  (let ((compiled (tcompile body)))
+    `(let* (,@(mapcan #'closed-vars compiled)
+            (func (lambda ,args ,(tbody compiled))))
+       ,@(t-init-base compiled)
+       func)))
+
+(defmacro tdefun (name args &body body)
+  (let ((compiled (tcompile body)))
+    `(let ,(mapcan #'closed-vars compiled)
+       (defun ,name ,args ,(tbody compiled))
+       ,@(t-init-base compiled)
+       ',name)))
+
+(defmacro before (deadline &body body)
+  `(tlambda () (before ,deadline ,@body)))
+
+(defmacro after (delay &body body)
+  `(tlambda () (after ,delay ,@body)))
+
+;;--------------------------------------------------------------------
+
+(define-condition c-expired (condition) ())
+
+(defun signal-expired () (signal 'c-expired) nil)
+
+(defmacro expiredp (&body body) 
+  `(handler-case (progn ,@body nil)
+     (c-expired (c) (progn c t))))
+
+(defmacro expiredp+ (&body body) 
+  `(handler-case (values nil (progn ,@body))
+     (c-expired (c) (progn c t))))
+
+;;--------------------------------------------------------------------

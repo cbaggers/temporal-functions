@@ -10,5 +10,6 @@
                #:fn_)
   :components ((:file "package")
                (:file "utils")
-               (:file "temporal-functions")))
+               (:file "temporal-functions")
+               (:file "tiny-time-manager")))
 

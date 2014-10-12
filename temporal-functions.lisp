@@ -2,6 +2,10 @@
 
 (in-package #:temporal-functions)
 
+
+;; {TODO} Add paramter for time sources
+;; {TODO} add once, between, each, once, whilst
+
 (defclass result () 
   ((closed-vars :initarg :closed-vars :accessor closed-vars)
    (start-test :initarg :start-test :accessor start-test)
@@ -114,6 +118,53 @@
                                                          compiled-forms))
                                 :for c :in compiled-forms :append
                                 (gen-then-step c i s top step-var))))))
+            :body `(,advance-step))
+           compiled-forms)
+     t)))
+
+(defun gen-repeat-step (compile-result step-num start-var top step-var)
+  (with-compile-result compile-result
+    (let ((init-name (caar init-funcs))
+          (expired-name (caar expire-tests)))
+      `((,step-num
+         (,init-name (,start-var)) 
+         (incf ,step-var) 
+         (go ,top))
+        (,(1+ step-num)
+          (if (,expired-name)
+              (progn (incf ,step-var) (go ,top))
+              (progn ,body)))))))
+
+(def-t-expander repeat (&rest forms)
+  (let ((step-var (gensym "step"))
+        (start-var (gensym "start"))
+        (expire-test-name (gensym "expired"))
+        (init-name (gensym "init"))
+        (advance-step (gensym "advance-step"))
+        (compiled-forms (mapcar #'process-t-body forms))
+        (top (gensym "top")))
+    (merge-results
+     (cons (new-result
+            :closed-vars `((,step-var 0)
+                           (,start-var 0))
+            :expire-test `(,expire-test-name () (> ,step-var 
+                                                   ,(1- (* 2 (length forms)))))
+            :init `(,init-name (,*init-arg*) (setf ,start-var ,*init-arg*))
+            :funcs `((,start-var () ,start-var)
+                     (,advance-step 
+                      ()
+                      (tagbody 
+                         ,top                          
+                         (case ,step-var
+                           ,@(loop :for i :from 0 :by 2
+                                :for s :in (cons start-var 
+                                                 (mapcar (λ caar (expire-test %))
+                                                         compiled-forms))
+                                :for c :in compiled-forms :append
+                                (gen-repeat-step c i s top step-var))
+                           `(,(length compiled-forms) 
+                             (setf ,step-var 0)
+                              (go ,top))))))
             :body `(,advance-step))
            compiled-forms)
      t)))
@@ -252,3 +303,28 @@
      (c-expired (c) (progn c t))))
 
 ;;--------------------------------------------------------------------
+
+;;this was in the old version of each
+;; (make-stepper ,timestep 
+;;   ,@(when max-cache-size 
+;;       (list max-cache-size)))
+
+;; {TODO} we allow swapping out of time source at runtime. Examine the 
+;;        usefulness of this we may be able to see a higher good in this.
+
+(defun make-stepper (step-size &optional (max-cache-size (max (* 10 step-size) 10000.0))
+                                 (default-source *default-time-source*))
+  "this takes absolute sources"
+  ;; if max-cache-size is set to zero
+  (when (< max-cache-size step-size)
+    (error "Make-Stepper: max-cache-size is smaller than step-size.~%max-cache-size: ~a~%step-size: ~a~%" max-cache-size step-size))
+  (let ((time-cache 0)
+        (last-val (funcall default-source)))
+    (lambda (&optional (time-source default-source))
+      (let* ((time (abs (funcall time-source)))
+             (dif (- time last-val)))
+        (setf last-val time
+              time-cache (min max-cache-size (+ time-cache dif)))
+        (when (>= time-cache step-size)
+          (setf time-cache (- time-cache step-size))
+          (min 1.0 (/ time-cache step-size)))))))

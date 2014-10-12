@@ -134,7 +134,10 @@
                                                   ,deadline-var))
             :init `(,init-name (,*init-arg*) ;; last argument is always time overflow
                                (setf ,start-var ,*init-arg*
-                                     ,deadline-var (+ ,*init-arg* ,deadline)))
+                                     ,deadline-var (+ ,*init-arg* ,deadline))
+                               ,@(loop :for c :in compiled-body
+                                    :if (caar (init c))
+                                    :collect `(,(caar (init c)) ,*init-arg*)))
             :body `(when (not (,expire-test-name))
                      (let ((,*progress-var* 
                             (float (- 1.0 (/ (- ,deadline-var ,*time-var*)
@@ -156,7 +159,7 @@
             :start-test `(,start-test-name () (when (>= ,*time-var* ,after-var)
                                                 ,after-var))
             :expire-test `(,expire-test-name () nil)
-            :init `(,init-name (,*init-arg*) ;; last argument is always time overflow
+            :init `(,init-name (,*init-arg*)
                                (setf ,after-var (+ ,*init-arg* ,delay)))
             :body `(when (and (not (,expire-test-name)) (,start-test-name))
                      (let ((,*progress-var* 1))
@@ -183,8 +186,7 @@
 (defun tbody (compiled)
   `(let ((,*time-var* (,*default-time-source*)))
      (labels (,@(mapcan #'start-test compiled)
-              ,@(mapcan #'expire-test compiled)
-                ,@(mapcan #'init compiled)
+              ,@(mapcan #'expire-test compiled)                
                 ,@(mapcan #'funcs compiled))                
        (prog1
            ,(improve-readability `(progn ,@(mapcar #'body compiled)))
@@ -207,17 +209,19 @@
 
 (defmacro tlambda (args &body body)  
   (let ((compiled (tcompile body)))
-    `(let* (,@(mapcan #'closed-vars compiled)
-            (func (lambda ,args ,(tbody compiled))))
-       ,@(t-init-base compiled)
-       func)))
+    `(let* (,@(mapcan #'closed-vars compiled))
+       (labels ,(reverse (mapcan #'init compiled))
+         (let ((func (lambda ,args ,(tbody compiled))))
+           ,@(t-init-base compiled)
+           func)))))
 
 (defmacro tdefun (name args &body body)
   (let ((compiled (tcompile body)))
     `(let ,(mapcan #'closed-vars compiled)
-       (defun ,name ,args ,(tbody compiled))
-       ,@(t-init-base compiled)
-       ',name)))
+       (labels ,(reverse (mapcan #'init compiled))
+         (defun ,name ,args ,(tbody compiled))
+         ,@(t-init-base compiled)
+         ',name))))
 
 (defmacro before (deadline &body body)
   `(tlambda () (before ,deadline ,@body)))

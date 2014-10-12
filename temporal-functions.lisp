@@ -152,11 +152,18 @@
          (start-test-name (gensym "start"))
          (expire-test-name (gensym "expired"))
          (init-name (gensym "init-after"))
+         (first-run (gensym "first-run-after"))
          (compiled-body (mapcar #'process-t-body body)))
     (merge-results
      (cons (new-result
-            :closed-vars `((,after-var 0))
+            :closed-vars `((,after-var 0)
+                           (,first-run t))
             :start-test `(,start-test-name () (when (>= ,*time-var* ,after-var)
+                                                (when ,first-run
+                                                  (setf ,first-run nil)
+                                                  ,@(loop :for c :in compiled-body
+                                                       :if (caar (init c))
+                                                       :collect `(,(caar (init c)) ,after-var)))
                                                 ,after-var))
             :expire-test `(,expire-test-name () nil)
             :init `(,init-name (,*init-arg*)
@@ -216,6 +223,7 @@
            func)))))
 
 (defmacro tdefun (name args &body body)
+  (unless name (error "temporal function must have name"))
   (let ((compiled (tcompile body)))
     `(let ,(mapcan #'closed-vars compiled)
        (labels ,(reverse (mapcan #'init compiled))

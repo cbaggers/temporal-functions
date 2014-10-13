@@ -14,6 +14,6 @@
            :whilst))
 
 (defpackage :tiny-time-manager
-  (:use :cl :cepl-utils :base-time)
+  (:use :cl :temporal-functions)
   (:nicknames :ttm)
   (:export :update :add :release :clean))

@@ -10,8 +10,7 @@
     (let ((last entries)
           (current (cdr entries)))
       (loop :until (null current) :do
-         (if (restart-case (conditional-functions::expiredp
-                            (funcall (car current)))
+         (if (restart-case (expiredp (funcall (car current)))
                (remove-managed-tfunction () t))
              (setf (cdr last) (cdr current)
                    last current)

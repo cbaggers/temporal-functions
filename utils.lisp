@@ -33,6 +33,7 @@
 
 (def-time-units
   (milliseconds 1)
+  (ms 1)
   (seconds (milliseconds 1000))
   (minutes (seconds 60))
   (hours (minutes 60)))

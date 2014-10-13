@@ -297,7 +297,6 @@
        (prog1
            ,(improve-readability `(progn ,@(mapcar #'body compiled)))
          (when (and ,@(loop :for c :in compiled
-                         :collect `(,(caar (start-test c)))
                          :collect `(,(caar (expire-test c)))))
            (signal-expired))))))
 
@@ -355,4 +354,10 @@
      (c-expired (c) (progn c t))))
 
 ;;--------------------------------------------------------------------
+
+(defmacro tλ (&body body)
+  (let ((args (first body)))
+    (if (consp args)
+        `(tlambda ,args ,@body)
+        `(tlambda () (,args ,@body)))))
 

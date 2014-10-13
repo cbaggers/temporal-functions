@@ -7,6 +7,9 @@
            :seconds
            :minutes
            :hours
+
+           :tlambda 
+           :tdefun
            :before
            :after
            :between

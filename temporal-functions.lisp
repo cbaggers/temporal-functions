@@ -164,9 +164,9 @@
                                                          compiled-forms))
                                 :for c :in compiled-forms :append
                                 (gen-repeat-step c i s top step-var))
-                           `(,(length compiled-forms)
-                             (setf ,step-var 0)
-                              (go ,top))))))
+                           (,(* 2 (length compiled-forms))
+                            (setf ,step-var 0)
+                             (go ,top))))))
             :body `(,advance-step))
            compiled-forms)
      t)))
@@ -306,6 +306,7 @@
            `(macrolet ((before (&body b) `(:before ,@b))
                        (after (&body b) `(:after ,@b))
                        (then (&body b) `(:then ,@b))
+                       (repeat (&body b) `(:repeat ,@b))
                        (each (&body b) `(:each ,@b)))
               ,body))))
 
@@ -360,4 +361,3 @@
     (if (consp args)
         `(tlambda ,args ,@body)
         `(tlambda () (,args ,@body)))))
-

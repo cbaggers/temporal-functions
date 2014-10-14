@@ -14,6 +14,7 @@
            :after
            :between
            :each
+           :repeat
            :whilst))
 
 (defpackage :tiny-time-manager

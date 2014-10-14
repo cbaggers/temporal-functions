@@ -312,7 +312,7 @@
 
 (defun t-init-base (compiled)
   (mapcar (lambda (x) `(,x (,*default-time-source*)))
-          (mapcar #'caar (mapcar #'init compiled)))) ;cddar
+          (remove nil (mapcar #'caar (mapcar #'init compiled))))) ;cddar
 
 (defmacro tlambda (args &body body)
   (let ((compiled (tcompile body)))

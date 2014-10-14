@@ -14,8 +14,13 @@
            :after
            :between
            :each
+           :then
            :repeat
-           :whilst))
+           :whilst
+           :|progress|
+           :signal-expired
+           :expiredp
+           :expiredp+))
 
 (defpackage :tiny-time-manager
   (:use :cl :temporal-functions)

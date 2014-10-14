@@ -71,7 +71,7 @@
 (defparameter *default-time-source* 'get-internal-real-time)
 (defparameter *time-var* '|time|)
 (defparameter *init-arg* '|start-time|)
-(defparameter *progress-var* '|progress|)
+(defparameter *progress-var* '%progress%)
 
 (defmacro def-t-expander (name args &body body)
   (let ((ename (symb name '-expander)))
@@ -277,25 +277,30 @@
 
 
 (defun tbody (compiled)
-  (let ((start-tests (mapcan #'start-test compiled))
-        (expire-tests (mapcan #'expire-test compiled))
-        (funcs (mapcan #'funcs compiled)))
-    `(let ((,*time-var* (,*default-time-source*)))
-       (declare (ignorable ,*time-var*))
-       (labels (,@start-tests
-                ,@expire-tests
-                ,@funcs)
-         (declare (ignorable ,@(mapcar (fn% (list 'function (first %))) 
-                                       start-tests)
-                             ,@(mapcar (fn% (list 'function (first %))) 
-                                       expire-tests)
-                             ,@(mapcar (fn% (list 'function (first %))) 
-                                       funcs)))
-         (prog1
-             ,(improve-readability `(progn ,@(mapcar #'body compiled)))
-           (when (and ,@(loop :for c :in compiled
-                           :collect `(,(caar (expire-test c)))))
-             (signal-expired)))))))
+  (let ((start-tests (remove nil (mapcan #'start-test compiled)))
+        (expire-tests (remove nil (mapcan #'expire-test compiled)))
+        (funcs (remove nil (mapcan #'funcs compiled))))
+    (if (and (null start-tests) (null expire-tests) (null funcs))
+        `(let ((,*time-var* (,*default-time-source*)))
+           (declare (ignorable ,*time-var*))
+           ,@(mapcar #'body compiled))
+        `(let ((,*time-var* (,*default-time-source*)))
+           (declare (ignorable ,*time-var*))
+           (labels (,@start-tests
+                    ,@expire-tests
+                    ,@funcs)
+             (declare (ignorable ,@(mapcar (fn% (list 'function (first %))) 
+                                           start-tests)
+                                 ,@(mapcar (fn% (list 'function (first %))) 
+                                           expire-tests)
+                                 ,@(mapcar (fn% (list 'function (first %))) 
+                                           funcs)))
+             (prog1
+                 ,(improve-readability `(progn ,@(mapcar #'body compiled)))
+               (when (and ,@(loop :for c :in compiled :collect
+                               (when (caar (expire-test c))
+                                   `(,(caar (expire-test c))))))
+                 (signal-expired))))))))
 
 (defun tcompile (body)
   (mapcar #'process-t-body
@@ -322,8 +327,8 @@
 (defmacro tdefun (name args &body body)
   (unless name (error "temporal function must have name"))
   (let ((compiled (tcompile body)))
-    `(let ,(mapcan #'closed-vars compiled)
-       (labels ,(reverse (mapcan #'init compiled))
+    `(let ,(remove nil (mapcan #'closed-vars compiled))
+       (labels ,(reverse (remove nil (mapcan #'init compiled)))
          (defun ,name ,args ,(tbody compiled))
          ,@(t-init-base compiled)
          ',name))))

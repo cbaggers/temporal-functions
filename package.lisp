@@ -17,7 +17,7 @@
            :then
            :repeat
            :whilst
-           :|progress|
+           :%progress%
            :signal-expired
            :expiredp
            :expiredp+))

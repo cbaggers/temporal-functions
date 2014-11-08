@@ -356,8 +356,8 @@
 
 ;;--------------------------------------------------------------------
 
-(defmacro tλ (&body body)
-  (let ((args (first body)))
-    (if (consp args)
-        `(tlambda ,args ,@body)
-        `(tlambda () (,args ,@body)))))
+;; (defmacro tλ (&body body)
+;;   (let ((args (first body)))
+;;     (if (consp args)
+;;         `(tlambda ,args ,@body)
+;;         `(tlambda () (,args ,@body)))))

@@ -71,7 +71,7 @@
 (defparameter *default-time-source* 'get-internal-real-time)
 (defparameter *time-var* '|time|)
 (defparameter *init-arg* '|start-time|)
-(defparameter *progress-var* '|progress|)
+(defparameter *progress-var* '%progress%)
 
 (defmacro def-t-expander (name args &body body)
   (let ((ename (symb name '-expander)))
@@ -80,7 +80,7 @@
          ,@body)
        (setf (gethash ,(kwd name) *temporal-clause-expanders*) #',ename))))
 
-(defun gen-then-step (compile-result step-num start-var top step-var)
+(defun gen-t-r-step (compile-result step-num start-var top step-var)
   (with-compile-result compile-result
     (let ((init-name (caar init-funcs))
           (expired-name (caar expire-tests)))
@@ -116,26 +116,13 @@
                          (case ,step-var
                            ,@(loop :for i :from 0 :by 2
                                 :for s :in (cons start-var
-                                                 (mapcar (λ caar (expire-test %))
+                                                 (mapcar (fn% (caar (expire-test %)))
                                                          compiled-forms))
                                 :for c :in compiled-forms :append
-                                (gen-then-step c i s top step-var))))))
+                                (gen-t-r-step c i s top step-var))))))
             :body `(,advance-step))
            compiled-forms)
      t)))
-
-(defun gen-repeat-step (compile-result step-num start-var top step-var)
-  (with-compile-result compile-result
-    (let ((init-name (caar init-funcs))
-          (expired-name (caar expire-tests)))
-      `((,step-num
-         (,init-name (,start-var))
-         (incf ,step-var)
-         (go ,top))
-        (,(1+ step-num)
-          (if (,expired-name)
-              (progn (incf ,step-var) (go ,top))
-              (progn ,body)))))))
 
 (def-t-expander repeat (&rest forms)
   (let ((step-var (gensym "step"))
@@ -160,12 +147,13 @@
                          (case ,step-var
                            ,@(loop :for i :from 0 :by 2
                                 :for s :in (cons start-var
-                                                 (mapcar (λ caar (expire-test %))
+                                                 (mapcar (fn% (caar (expire-test %)))
                                                          compiled-forms))
                                 :for c :in compiled-forms :append
-                                (gen-repeat-step c i s top step-var))
+                                (gen-t-r-step c i s top step-var))
                            (,(* 2 (length compiled-forms))
                             (setf ,step-var 0)
+                             (,init-name (,(caar (expire-test (car (last compiled-forms))))))
                              (go ,top))))))
             :body `(,advance-step))
            compiled-forms)
@@ -289,16 +277,30 @@
 
 
 (defun tbody (compiled)
-  `(let ((,*time-var* (,*default-time-source*)))
-     (declare (ignorable ,*time-var*))
-     (labels (,@(mapcan #'start-test compiled)
-              ,@(mapcan #'expire-test compiled)
-                ,@(mapcan #'funcs compiled))
-       (prog1
-           ,(improve-readability `(progn ,@(mapcar #'body compiled)))
-         (when (and ,@(loop :for c :in compiled
-                         :collect `(,(caar (expire-test c)))))
-           (signal-expired))))))
+  (let ((start-tests (remove nil (mapcan #'start-test compiled)))
+        (expire-tests (remove nil (mapcan #'expire-test compiled)))
+        (funcs (remove nil (mapcan #'funcs compiled))))
+    (if (and (null start-tests) (null expire-tests) (null funcs))
+        `(let ((,*time-var* (,*default-time-source*)))
+           (declare (ignorable ,*time-var*))
+           ,@(mapcar #'body compiled))
+        `(let ((,*time-var* (,*default-time-source*)))
+           (declare (ignorable ,*time-var*))
+           (labels (,@start-tests
+                    ,@expire-tests
+                    ,@funcs)
+             (declare (ignorable ,@(mapcar (fn% (list 'function (first %))) 
+                                           start-tests)
+                                 ,@(mapcar (fn% (list 'function (first %))) 
+                                           expire-tests)
+                                 ,@(mapcar (fn% (list 'function (first %))) 
+                                           funcs)))
+             (prog1
+                 ,(improve-readability `(progn ,@(mapcar #'body compiled)))
+               (when (and ,@(loop :for c :in compiled :collect
+                               (when (caar (expire-test c))
+                                   `(,(caar (expire-test c))))))
+                 (signal-expired))))))))
 
 (defun tcompile (body)
   (mapcar #'process-t-body
@@ -325,8 +327,8 @@
 (defmacro tdefun (name args &body body)
   (unless name (error "temporal function must have name"))
   (let ((compiled (tcompile body)))
-    `(let ,(mapcan #'closed-vars compiled)
-       (labels ,(reverse (mapcan #'init compiled))
+    `(let ,(remove nil (mapcan #'closed-vars compiled))
+       (labels ,(reverse (remove nil (mapcan #'init compiled)))
          (defun ,name ,args ,(tbody compiled))
          ,@(t-init-base compiled)
          ',name))))

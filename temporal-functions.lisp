@@ -239,7 +239,7 @@
               time-cache (min max-cache-size (+ time-cache dif)))
         (when (>= time-cache step-size)
           (setf time-cache (- time-cache step-size))
-          (min 1.0 (/ time-cache step-size)))))))
+          (min 1.0 (float (/ time-cache step-size))))))))
 
 (def-t-expander each (delay &rest body)
   (let* ((start-test-name (gensym "start"))

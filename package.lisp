@@ -20,7 +20,9 @@
            :%progress%
            :signal-expired
            :expiredp
-           :expiredp+))
+           :expiredp+
+           
+           :make-stepper))
 
 (defpackage :tiny-time-manager
   (:use :cl :temporal-functions)

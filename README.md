@@ -38,20 +38,17 @@ Also has brevity macros
 
     ;; which, in turn, expands to a form equivilent to
 
-    (let* ((deadline 0) (start 0))
-      (labels ((init-before (start-time)
-                 (setf start start-time
-                       deadline (+ start-time (millseconds 1300)))))
-        (let ((func
-               (lambda ()
-                 (let ((time (get-internal-real-time)))
-                   (labels ((expired () (when (>= time deadline)
-                                          deadline)))
-                     (if (expired)
-                         (signal-expired)
-                         (print "ping!")))))))
-          (init-before (get-internal-real-time))
-          func)))
+    (let* ((start (get-internal-real-time))
+           (deadline (+ start (millseconds 1300))))
+      (let ((func
+             (lambda ()
+               (let ((time (get-internal-real-time)))
+                 (labels ((expired () (when (>= time deadline)
+                                        deadline)))
+                   (if (expired)
+                       (signal-expired)
+                       (print "ping!")))))))
+        func))
 
 
 Background

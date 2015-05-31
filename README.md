@@ -5,7 +5,7 @@ Rewrite of the temporal function code from cepl.
 
 Adds tlambda, tdefun & tdefvar along with a pile of related funcs and macros
 
-This is a wip but will be stable within a week. At that point it will be baked back into cepl.
+
 
 Background
 ----------
@@ -14,4 +14,4 @@ I had spent an afternoon reading about and sketching out different ways obstract
 
 The 'voice' stopped me in my tracks and I started wondering what temporal lambdas were...or what they could be. The idea of temporal scope sounded weird too. I decided the only way to resolve this way to build the constructs and see if they turn out to be useful.
 
-In a few weeks I will have an answer :D
+Use will prove this useful or delusional :)

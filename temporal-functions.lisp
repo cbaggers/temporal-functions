@@ -2,7 +2,6 @@
 
 (in-package #:temporal-functions)
 
-
 ;; {TODO} Add paramter for time sources
 ;; {TODO} add once, between, each, once, whilst
 ;; {TODO} if user fires expired inside body of clause the effect should be 
@@ -74,11 +73,13 @@
 (defparameter *progress-var* '%progress%)
 
 (defmacro def-t-expander (name args &body body)
-  (let ((ename (symb name '-expander)))
-    `(progn
-       (defun ,ename ,args
-         ,@body)
-       (setf (gethash ,(kwd name) *temporal-clause-expanders*) #',ename))))
+  (labels ((symb (&rest parts) (intern (format nil "~{~a~}" parts)))
+           (kwd (&rest parts) (intern (format nil "~{~a~}" parts) :keyword)))
+    (let ((ename (symb name '-expander)))
+      `(progn
+         (defun ,ename ,args
+           ,@body)
+         (setf (gethash ,(kwd name) *temporal-clause-expanders*) #',ename)))))
 
 (defun gen-t-r-step (compile-result step-num start-var top step-var)
   (with-compile-result compile-result
@@ -216,10 +217,6 @@
            compiled-body)
      t)))
 
-;;this was in the old version of each
-;; (make-stepper ,timestep
-;;   ,@(when max-cache-size
-;;       (list max-cache-size)))
 
 ;; {TODO} we allow swapping out of time source at runtime. Examine the
 ;;        usefulness of this we may be able to see a higher good in this.
@@ -357,9 +354,3 @@
      (c-expired (c) (progn c t))))
 
 ;;--------------------------------------------------------------------
-
-;; (defmacro tλ (&body body)
-;;   (let ((args (first body)))
-;;     (if (consp args)
-;;         `(tlambda ,args ,@body)
-;;         `(tlambda () (,args ,@body)))))

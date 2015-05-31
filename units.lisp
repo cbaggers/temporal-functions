@@ -1,14 +1,6 @@
 
 (in-package #:temporal-functions)
 
-(defun symb (&rest parts)
-  (intern (format nil "~{~a~}" parts)))
-(defun kwd (&rest parts)
-  (intern (format nil "~{~a~}" parts) :keyword))
-
-(defun last-elm (list)
-  (car (last list)))
-
 ;;----------------------------------------------------------------------
 ;; Time units
 ;;------------

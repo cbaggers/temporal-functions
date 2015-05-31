@@ -339,6 +339,12 @@
 (defmacro each (delay &body body)
   `(tlambda () (each ,delay ,@body)))
 
+(defmacro then (&body body)
+  `(tlambda () (then ,@body)))
+
+(defmacro repeat (&body body)
+  `(tlambda () (repeat ,@body)))
+
 ;;--------------------------------------------------------------------
 
 (define-condition c-expired (condition) ())

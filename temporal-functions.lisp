@@ -117,7 +117,7 @@
                          (case ,step-var
                            ,@(loop :for i :from 0 :by 2
                                 :for s :in (cons start-var
-                                                 (mapcar (fn% (caar (expire-test %)))
+                                                 (mapcar (lambda (_) (caar (expire-test _)))
                                                          compiled-forms))
                                 :for c :in compiled-forms :append
                                 (gen-t-r-step c i s top step-var))))))
@@ -148,7 +148,7 @@
                          (case ,step-var
                            ,@(loop :for i :from 0 :by 2
                                 :for s :in (cons start-var
-                                                 (mapcar (fn% (caar (expire-test %)))
+                                                 (mapcar (lambda (_) (caar (expire-test _)))
                                                          compiled-forms))
                                 :for c :in compiled-forms :append
                                 (gen-t-r-step c i s top step-var))
@@ -286,11 +286,11 @@
            (labels (,@start-tests
                     ,@expire-tests
                     ,@funcs)
-             (declare (ignorable ,@(mapcar (fn% (list 'function (first %))) 
+             (declare (ignorable ,@(mapcar (lambda (_) (list 'function (first _))) 
                                            start-tests)
-                                 ,@(mapcar (fn% (list 'function (first %))) 
+                                 ,@(mapcar (lambda (_) (list 'function (first _))) 
                                            expire-tests)
-                                 ,@(mapcar (fn% (list 'function (first %))) 
+                                 ,@(mapcar (lambda (_) (list 'function (first _))) 
                                            funcs)))
              (prog1
                  ,(improve-readability `(progn ,@(mapcar #'body compiled)))

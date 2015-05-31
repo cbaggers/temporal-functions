@@ -5,9 +5,7 @@
   :description "A means of creating functions that have an internal concept of time"
   :author "Chris Bagley <techsnuffle@gmail.com>"
   :license "2 Clause BSD"
-  :depends-on (#:macroexpand-dammit
-               #:alexandria
-               #:fn_)
+  :depends-on (#:macroexpand-dammit)
   :components ((:file "package")
                (:file "units")
                (:file "temporal-functions")

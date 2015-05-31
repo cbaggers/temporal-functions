@@ -1,7 +1,7 @@
 ;;;; package.lisp
 
 (defpackage #:temporal-functions
-  (:use #:cl #:fn_)
+  (:use #:cl)
   (:export :def-time-units
            :milliseconds
            :seconds

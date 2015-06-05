@@ -2,9 +2,11 @@
 
 (in-package #:temporal-functions)
 
+;; {TODO} rewrite so it doesnt rely on macroexpand-dammit. I should know enough
+;;        to do this now :)
 ;; {TODO} Add paramter for time sources
 ;; {TODO} add once, between, each, once, whilst
-;; {TODO} if user fires expired inside body of clause the effect should be 
+;; {TODO} if user fires expired inside body of clause the effect should be
 ;;        local
 
 (defclass result ()
@@ -286,11 +288,11 @@
            (labels (,@start-tests
                     ,@expire-tests
                     ,@funcs)
-             (declare (ignorable ,@(mapcar (lambda (_) (list 'function (first _))) 
+             (declare (ignorable ,@(mapcar (lambda (_) (list 'function (first _)))
                                            start-tests)
-                                 ,@(mapcar (lambda (_) (list 'function (first _))) 
+                                 ,@(mapcar (lambda (_) (list 'function (first _)))
                                            expire-tests)
-                                 ,@(mapcar (lambda (_) (list 'function (first _))) 
+                                 ,@(mapcar (lambda (_) (list 'function (first _)))
                                            funcs)))
              (prog1
                  ,(improve-readability `(progn ,@(mapcar #'body compiled)))
@@ -321,7 +323,7 @@
            ,@(t-init-base compiled)
            func)))))
 
-(defmacro tdefun (name args &body body)
+(defmacro defun-t (name args &body body)
   (unless name (error "temporal function must have name"))
   (let ((compiled (tcompile body)))
     `(let ,(remove nil (mapcan #'closed-vars compiled))
@@ -360,4 +362,3 @@
      (c-expired (c) (progn c t))))
 
 ;;--------------------------------------------------------------------
-

@@ -116,7 +116,7 @@
                       ()
                       (tagbody
                          ,top
-                         (case ,step-var
+                         (case= ,step-var
                            ,@(loop :for i :from 0 :by 2
                                 :for s :in (cons start-var
                                                  (mapcar (lambda (_) (caar (expire-test _)))
@@ -147,7 +147,7 @@
                       ()
                       (tagbody
                          ,top
-                         (case ,step-var
+                         (case= ,step-var
                            ,@(loop :for i :from 0 :by 2
                                 :for s :in (cons start-var
                                                  (mapcar (lambda (_) (caar (expire-test _)))

@@ -9,5 +9,6 @@
   :components ((:file "package")
 	       (:file "helpers")
                (:file "units")
-               (:file "temporal-functions")
+               ;;(:file "temporal-functions")
+	       (:file "core")
                (:file "tiny-time-manager")))

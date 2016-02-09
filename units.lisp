@@ -24,7 +24,7 @@
             :do (push (cons type count) defined)))))
 
 (def-time-units
-  (milliseconds 1)
+  (milliseconds #.(/ internal-time-units-per-second 1000))
   (ms 1)
   (seconds (milliseconds 1000))
   (minutes (seconds 60))

@@ -22,11 +22,11 @@
 	(then ,@then-clauses)))))
 
 (defmacro %sys-val () `(aref state 0))
-(defmacro %current-step () `(aref state %state-offset))
 
 (defconstant +step+ 0)
 (defconstant +collect-state-info+ 1)
 (defconstant +init+ 2)
+(defconstant +local-init+ 3)
 
 (defmacro tlambda-top-level (body-form)
   `(labels ((%get-time ()
@@ -35,6 +35,8 @@
 	      (let ((x (%get-time)))
 		(prog1 (- x last-called)
 		  (setf last-called x))))
+	    (reset ()
+	      (print "reset not implemented"))
 	    (step (%time %state-offset %sys-call)
 	      ,body-form)
 	    (dispatch ()
@@ -47,48 +49,111 @@
 	      (step (%time-delta) 0 0 +step+)))
      (dispatch)))
 
-;; (tlambda ()
-;;   (before 100 (print "hi"))
-;;   (before 100 (print "there")))
-
+(tlambda ()
+  (before 100 (print "hi"))
+  (before 100 (print "there")))
 
 (defmacro then (&body then-clauses)
   `(then~1
      ,@then-clauses
      (forever (signal-expired))))
 
-(defmacro def-temporal-clause (name state-vars args)
-  )
+(defmacro repeat (&body repeat-clauses)
+  `(then~1
+     ,@repeat-clauses
+     (reset)))
 
-(defmacro then~1 (&body then-clauses)
-  (let ((steps (loop :for i :below (length then-clauses) :collect
-		  (intern (format nil "step-~a" i)))))
-    `(macrolet ()
-       (labels (,@(loop :for step :in steps :for clause :in then-clauses :collect
-		     `(,step (%time %state-offset %sys-call)
-			     ,clause))
-		;; some preliminary number, replace this.
-		;; (the 1+ is because of the step)
-		(how-many-slots ()
-		  (1+ ,(length steps)))
+(def-stepping-temporal-clause then~1 then-clauses
+  (x y))
 
-		  (init (init-time %state-offset)
-		    (setf (%current-step) 0))
+(defmacro def-stepping-temporal-clause (name clauses-name state-vars
+					&key local-init)
+  `(defmacro ,name (&body ,clauses-name)
+     (let ((steps (loop :for i :below (length ,clauses-name) :collect
+		     (intern (format nil "step-~a" i))))
+	   (step-offsets
+	    (loop :for i :below (length ,clauses-name) :collect
+	       (intern (format nil "step-offset-~a" i))))
+	   (local-init ,local-init))
+       `(macrolet ((%current-step (aref state %state-offset))
+		   ,@(loop :for o :in step-offsets :for i :from 0 :collect
+			`(,o (aref state (+ %state-offset ,i))))
+		   ,@(loop :for v :in ',state-vars
+			:for i :from ,(length state-vars) :collect
+			`(,v (aref state (+ %state-offset ,i)))))
+	  (labels (,@(loop :for step :in steps :for clause :in ,clauses-name :collect
+			`(,step (%time %state-offset %sys-call)
+				,clause))
 
-		  (dispatch (%time %state-offset %sys-call)
-		    (case= (%current-step)
-		      ,@(loop :for step :in steps :for i :from 0 :collect
-			   `(,i (,step %time %state-offset %sys-call))))))
-	 (case= %sys-call
-	   (+step+ (dispatch %time %sys-call))
-	   (+collect-state-info+ (+ (how-many-slots)
-		      ,@(mapcar λ`(,_ 0 %state-offset %sys-call) steps)))
-	   (+init+
-	    (init %time %state-offset)
-	    ,(reduce λ`(,_1 0 ,_ %sys-call) steps
-		     :initial-value '(+ %state-offset (how-many-slots))))
-	   (otherwise (error "invalid %sys-call bug")))))))
+		   (next (remaining-time %state-offset)
+		     (incf %current-step)
+		     (dispatch remaining-time +local-init+))
 
+		     ;; some preliminary number, replace this.
+		     ;; (the 1+ is because of the step)
+		     (how-many-slots ()
+		       (1+ (+ ,(length steps) ,,(length state-vars))))
+
+		     ;; get a list of the number of state slots each step uses
+		     (slot-counts-from-steps ()
+		       (list ,@(mapcar λ`(,_ 0 0 +collect-state-info+) steps)))
+
+		     ;; tfunc-wide init
+		     (init (%state-offset)
+		       ;; cache offsets for each step
+		       (let ((sizes (slot-counts-from-steps))
+			     (own (how-many-slots))
+			     (rolling-total (rolling-add sizes)))
+			 ,@(loop :for o :in step-offsets :for i :from 0 :collect
+			      `(setf ,o (+ %state-offset
+					   own
+					   (nth ,i rolling-total))))))
+
+		     (local-init (%time %state-offset)
+		       (setf %current-step 0)
+		       ,local-init)
+
+		     (dispatch (%time %sys-call)
+		       (case= %current-step
+			 ,@(loop :for step :in steps
+			      :for o :in step-offsets
+			      :for i :from 0 :collect
+			      `(,i (,step %time ,o %sys-call))))))
+	    (case= %sys-call
+	      (+step+ (dispatch %time %sys-call))
+	      (+collect-state-info+
+	       (+ (how-many-slots) (reduce #'+ (slot-counts-from-steps))))
+	      (+init+ (init %state-offset))
+	      (+local-init+ (local-init %time %state-offset)
+			    (dispatch %time %sys-call))
+	      (otherwise (error "invalid %sys-call bug"))))))))
+
+(def-temporal-clause before (rel-time) (start deadline)
+		     (:local-init (setf start %time
+					deadline (+ %time rel-time))))
+
+(defmacro def-temporal-clause (name args state-vars (&key local-init))
+  `(defmacro ,name (,@args &body body)
+     (let ((local-init ',local-init))
+       `(macrolet (,@(loop :for v :in ',state-vars
+			:for i :from ,(length state-vars) :collect
+			`(,v (aref state (+ %state-offset ,i)))))
+	  (labels ((local-init (%time %state-offset)
+		     ,local-init)
+
+		   (dispatch (%time %sys-call)
+		     ,@body))
+	    (case= %sys-call
+	      (+step+ (dispatch %time %sys-call))
+	      (+local-init+ (local-init %time %state-offset)
+			    (dispatch %time %sys-call))
+	      (+collect-state-info+ ,,(length state-vars))
+	      (+init+ nil)
+	      (otherwise (error "invalid %sys-call bug"))))))))
+
+
+(defun rolling-add (list)
+  (reverse (maplist λ(apply #'+ _) (reverse list))))
 
 (defmacro case= (form &body cases)
   (let ((g (gensym "val")))

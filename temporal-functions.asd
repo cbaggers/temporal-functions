@@ -5,7 +5,7 @@
   :author "Chris Bagley <techsnuffle@gmail.com>"
   :license "2 Clause BSD"
   :serial t
-  :depends-on (#:macroexpand-dammit)
+  :depends-on (#:macroexpand-dammit #:fn)
   :components ((:file "package")
 	       (:file "helpers")
                (:file "units")

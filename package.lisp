@@ -8,7 +8,7 @@
            :minutes
            :hours
 
-           :tlambda 
+           :tlambda
            :tdefun
            :before
            :after
@@ -21,7 +21,8 @@
            :signal-expired
            :expiredp
            :expiredp+
-           
+	   :local-reset
+
            :make-stepper))
 
 (defpackage :tiny-time-manager

@@ -147,17 +147,21 @@
                       ()
                       (tagbody
                          ,top
-                         (case= ,step-var
-                           ,@(loop :for i :from 0 :by 2
-                                :for s :in (cons start-var
-                                                 (mapcar (lambda (_) (caar (expire-test _)))
-                                                         compiled-forms))
-                                :for c :in compiled-forms :append
-                                (gen-t-r-step c i s top step-var))
-                           (,(* 2 (length compiled-forms))
-                            (setf ,step-var 0)
-                             (,init-name (,(caar (expire-test (car (last compiled-forms))))))
-                             (go ,top))))))
+			 (labels ((local-reset
+				      (&optional finished-at)
+				    (let ((finished-at (or finished-at ,*time-var*)))
+				      (setf ,step-var 0)
+				      (,init-name finished-at)
+				      (go ,top))))
+			   (case= ,step-var
+			     ,@(loop :for i :from 0 :by 2
+				  :for s :in (cons start-var
+						   (mapcar (lambda (_) (caar (expire-test _)))
+							   compiled-forms))
+				  :for c :in compiled-forms :append
+				  (gen-t-r-step c i s top step-var))
+			     (,(* 2 (length compiled-forms))
+			       (local-reset (,(caar (expire-test (car (last compiled-forms))))))))))))
             :body `(,advance-step))
            compiled-forms)
      t)))

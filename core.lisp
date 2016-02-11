@@ -128,28 +128,47 @@
 			    (dispatch %time %sys-call))
 	      (otherwise (error "invalid %sys-call bug"))))))))
 
-(def-temporal-clause before (rel-time) (start deadline)
-		     (:local-init (setf start %time
-					deadline (+ %time rel-time))))
+(def-temporal-clause before (rel-time)
+  :state-vars (start deadline)
 
-(defmacro def-temporal-clause (name args state-vars (&key local-init))
-  `(defmacro ,name (,@args &body body)
-     (let ((local-init ',local-init))
-       `(macrolet (,@(loop :for v :in ',state-vars
-			:for i :from ,(length state-vars) :collect
-			`(,v (aref state (+ %state-offset ,i)))))
-	  (labels ((local-init (%time %state-offset)
-		     ,local-init)
+  :local-init
+  (lambda (time-already-passed)
+   (setf start (- now time-already-passed)
+         deadline (+ now (- rel-time time-already-passed))))
 
-		   (dispatch (%time %sys-call)
-		     ,@body))
-	    (case= %sys-call
-	      (+step+ (dispatch %time %sys-call))
-	      (+local-init+ (local-init %time %state-offset)
-			    (dispatch %time %sys-call))
-	      (+collect-state-info+ ,,(length state-vars))
-	      (+init+ nil)
-	      (otherwise (error "invalid %sys-call bug"))))))))
+  :progress
+  (/ (- now start) (- deadline start))
+
+  :body
+  (progn
+    (incf time to-eat)
+    (if (< time deadline)
+        (print "Hi")
+        (next (- deadline time)))))
+
+(defmacro def-temporal-clause (name args &body keys)
+  (destructuring-bind (&key state-vars local-init progress body) keys
+    `(defmacro ,name (,@args &body body)
+       (let ((local-init ',local-init)
+             (progress ',progress)
+             (body ',body))
+         `(macrolet (,@(loop :for v :in ',state-vars
+                          :for i :from ,(length state-vars) :collect
+                          `(,v (aref state (+ %state-offset ,i)))))
+            (labels ((local-init (%time %state-offset)
+                       ,local-init)
+
+                     (dispatch (%time %sys-call)
+                       (let ((%progress% ,progress))
+                         ,@body)))
+              (case= %sys-call
+                (+step+ (dispatch %time %sys-call))
+                (+local-init+ (local-init %time %state-offset)
+                              (dispatch %time %sys-call))
+                (+collect-state-info+ ,,(length state-vars))
+                (+init+ nil)
+                (otherwise (error "invalid %sys-call bug")))))))))
+
 
 
 (defun rolling-add (list)

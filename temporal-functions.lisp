@@ -84,6 +84,8 @@
          (setf (gethash ,(kwd name) *temporal-clause-expanders*) #',ename)))))
 
 (defun gen-t-r-step (compile-result step-num start-var top step-var)
+  "each then/repeat step has two steps. One that sets up and another than
+   runs"
   (with-compile-result compile-result
     (let ((init-name (caar init-funcs))
           (expired-name (caar expire-tests)))

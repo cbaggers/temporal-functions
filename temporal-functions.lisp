@@ -7,7 +7,7 @@
 ;;        - got closer but damn this is hard. All boils down to knowing in the
 ;;          body is a temporal-clause or not (without macroexapnding obviously)
 ;; {TODO} Add paramter for time sources
-;; {TODO} add once, between, once, whilst
+;; {TODO} add once, between, whilst
 ;; {TODO} if user fires expired inside body of clause the effect should be
 ;;        local
 

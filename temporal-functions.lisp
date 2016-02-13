@@ -7,7 +7,7 @@
 ;;        - got closer but damn this is hard. All boils down to knowing in the
 ;;          body is a temporal-clause or not (without macroexapnding obviously)
 ;; {TODO} Add paramter for time sources
-;; {TODO} add once, between, each, once, whilst
+;; {TODO} add once, between, once, whilst
 ;; {TODO} if user fires expired inside body of clause the effect should be
 ;;        local
 
@@ -124,13 +124,19 @@
                       ()
                       (tagbody
                          ,top
-                         (case= ,step-var
-                           ,@(loop :for i :from 0 :by 3
-                                :for s :in (cons start-var
-                                                 (mapcar (lambda (_) (caar (expire-test _)))
-                                                         compiled-forms))
-                                :for c :in compiled-forms :append
-                                (gen-t-r-step c i s top step-var))))))
+			 (labels ((local-reset
+				      (&optional finished-at)
+				    (let ((finished-at (or finished-at ,*time-var*)))
+				      (setf ,step-var 0)
+				      (,init-name finished-at)
+				      (go ,top))))
+			   (case= ,step-var
+			     ,@(loop :for i :from 0 :by 3
+				  :for s :in (cons start-var
+						   (mapcar (lambda (_) (caar (expire-test _)))
+							   compiled-forms))
+				  :for c :in compiled-forms :append
+				  (gen-t-r-step c i s top step-var)))))))
             :body `(,advance-step))
            compiled-forms)
      t)))

@@ -262,6 +262,7 @@
           (setf time-cache (- time-cache step-size))
           (min 1.0 (float (/ time-cache step-size))))))))
 
+
 (def-t-expander each (delay &rest body)
   (let* ((start-test-name (gensym "start"))
          (expire-test-name (gensym "expired"))
@@ -278,6 +279,24 @@
               (let ((,*progress-var* 1))
                 (declare (ignorable ,*progress-var*))
                 (progn ,@body))))))
+
+(def-t-expander until (test &rest body)
+  (let* ((start-test-name (gensym "start"))
+         (expire-test-name (gensym "expired"))
+         (init-name (gensym "init-each"))
+         (has-fired (gensym "has-fired")))
+    (new-result
+     :closed-vars `((,has-fired nil))
+     :start-test `(,start-test-name () t)
+     :expire-test `(,expire-test-name () ,has-fired)
+     :init `(,init-name (,*init-arg*)
+                        (declare (ignore ,*init-arg*))
+                        (setf ,has-fired nil))
+     :body `(unless ,has-fired
+	      (if ,test
+		  (progn (setf ,has-fired ,*time-var*)
+			 nil)
+		  (progn ,@body))))))
 
 
 ;;----------------------------------------------------------------------------
@@ -329,6 +348,7 @@
            `(macrolet ((before (&body b) `(:before ,@b))
                        (after (&body b) `(:after ,@b))
                        (then (&body b) `(:then ,@b))
+		       (until (&body b) `(:until ,@b))
                        (repeat (&body b) `(:repeat ,@b))
                        (each (&body b) `(:each ,@b)))
               ,body))))

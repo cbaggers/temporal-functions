@@ -4,6 +4,8 @@
 
 ;; {TODO} rewrite so it doesnt rely on macroexpand-dammit. I should know enough
 ;;        to do this now :)
+;;        - got closer but damn this is hard. All boils down to knowing in the
+;;          body is a temporal-clause or not (without macroexapnding obviously)
 ;; {TODO} Add paramter for time sources
 ;; {TODO} add once, between, each, once, whilst
 ;; {TODO} if user fires expired inside body of clause the effect should be
@@ -89,12 +91,18 @@
           (expired-name (caar expire-tests)))
       `((,step-num
          (,init-name (,start-var))
+         (incf ,step-var 2)
+         (go ,top))
+	(,(+ 1 step-num)
+         (,init-name ,*time-var*)
          (incf ,step-var)
          (go ,top))
-        (,(1+ step-num)
+        (,(+ 2 step-num)
           (if (,expired-name)
               (progn (incf ,step-var) (go ,top))
-              (progn ,body)))))))
+	      (labels ((skip-step ()
+			 (incf ,step-var 2) (go ,top)))
+		,body)))))))
 
 (def-t-expander then (&rest forms)
   (let ((step-var (gensym "step"))
@@ -109,7 +117,7 @@
             :closed-vars `((,step-var 0)
                            (,start-var 0))
             :expire-test `(,expire-test-name () (> ,step-var
-                                                   ,(1- (* 2 (length forms)))))
+                                                   ,(1- (* 3 (length forms)))))
             :init `(,init-name (,*init-arg*) (setf ,start-var ,*init-arg*))
             :funcs `((,start-var () ,start-var)
                      (,advance-step
@@ -117,7 +125,7 @@
                       (tagbody
                          ,top
                          (case= ,step-var
-                           ,@(loop :for i :from 0 :by 2
+                           ,@(loop :for i :from 0 :by 3
                                 :for s :in (cons start-var
                                                  (mapcar (lambda (_) (caar (expire-test _)))
                                                          compiled-forms))
@@ -140,7 +148,7 @@
             :closed-vars `((,step-var 0)
                            (,start-var 0))
             :expire-test `(,expire-test-name () (> ,step-var
-                                                   ,(1- (* 2 (length forms)))))
+                                                   ,(1- (* 3 (length forms)))))
             :init `(,init-name (,*init-arg*) (setf ,start-var ,*init-arg*))
             :funcs `((,start-var () ,start-var)
                      (,advance-step
@@ -154,13 +162,13 @@
 				      (,init-name finished-at)
 				      (go ,top))))
 			   (case= ,step-var
-			     ,@(loop :for i :from 0 :by 2
+			     ,@(loop :for i :from 0 :by 3
 				  :for s :in (cons start-var
 						   (mapcar (lambda (_) (caar (expire-test _)))
 							   compiled-forms))
 				  :for c :in compiled-forms :append
 				  (gen-t-r-step c i s top step-var))
-			     (,(* 2 (length compiled-forms))
+			     (,(* 3 (length compiled-forms))
 			       (local-reset (,(caar (expire-test (car (last compiled-forms))))))))))))
             :body `(,advance-step))
            compiled-forms)
@@ -273,7 +281,7 @@
 
 (defun improve-readability (form)
   (cond ((atom form) form)
-        ((and (eql 'progn (first form)) (= (length form) 2))
+        ((and (eql 'progn (first form)) (= (length form) 3))
          (improve-readability (second form)))
         (t (cons (improve-readability (first form))
                  (improve-readability (rest form))))))

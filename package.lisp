@@ -22,6 +22,7 @@
            :expiredp
            :expiredp+
 	   :local-reset
+	   :skip-step
 
            :make-stepper))
 

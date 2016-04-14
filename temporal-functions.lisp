@@ -104,6 +104,7 @@
               (progn (incf ,step-var) (go ,top))
 	      (labels ((skip-step ()
 			 (incf ,step-var 2) (go ,top)))
+		(declare (ignorable #'skip-step))
 		,body)))))))
 
 (def-t-expander then (&rest forms)

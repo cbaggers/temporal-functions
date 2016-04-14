@@ -9,7 +9,7 @@
            :hours
 
            :tlambda
-           :tdefun
+	   :defun-t
            :before
            :after
            :between

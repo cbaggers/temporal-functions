@@ -16,6 +16,7 @@
            :each
            :then
            :repeat
+	   :once
            :whilst
            :%progress%
            :signal-expired
@@ -29,4 +30,4 @@
 (defpackage :tiny-time-manager
   (:use :cl :temporal-functions)
   (:nicknames :ttm)
-  (:export :update :add :release :clean))
+  (:export :update :add :release :clean :make-tfunc-pool))

@@ -301,6 +301,22 @@
 			 nil)
 		  (progn ,@body))))))
 
+(def-t-expander once (&rest body)
+  (let* ((start-test-name (gensym "start"))
+         (expire-test-name (gensym "expired"))
+         (init-name (gensym "init-each"))
+         (has-fired (gensym "has-fired")))
+    (new-result
+     :closed-vars `((,has-fired nil))
+     :start-test `(,start-test-name () t)
+     :expire-test `(,expire-test-name () ,has-fired)
+     :init `(,init-name (,*init-arg*)
+                        (declare (ignore ,*init-arg*))
+                        (setf ,has-fired nil))
+     :body `(unless ,has-fired
+	      (setf ,has-fired ,*time-var*)
+	      ,@body))))
+
 
 ;;----------------------------------------------------------------------------
 
@@ -353,7 +369,8 @@
                        (then (&body b) `(:then ,@b))
 		       (until (&body b) `(:until ,@b))
                        (repeat (&body b) `(:repeat ,@b))
-                       (each (&body b) `(:each ,@b)))
+                       (each (&body b) `(:each ,@b))
+		       (once (&body b) `(:once ,@b)))
               ,body))))
 
 (defun t-init-base (compiled)

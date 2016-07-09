@@ -71,7 +71,8 @@
 
 (defparameter *temporal-clause-expanders*
   (make-hash-table))
-(defparameter *default-time-source* 'get-internal-real-time)
+(defparameter *default-time-source-name* 'get-internal-real-time)
+(defparameter *default-time-source* #'get-internal-real-time)
 (defparameter *time-var* '|time|)
 (defparameter *init-arg* '|start-time|)
 (defparameter *progress-var* '%progress%)
@@ -249,21 +250,46 @@
 ;;        usefulness of this we may be able to see a higher good in this.
 
 (defun make-stepper (step-size &optional (max-cache-size (max (* 10 step-size) 10000.0))
-                                 (default-source *default-time-source*))
+                                 (default-source *default-time-source*)
+				 (allow-replace-source nil))
   "this takes absolute sources"
   ;; if max-cache-size is set to zero
   (when (< max-cache-size step-size)
     (error "Make-Stepper: max-cache-size is smaller than step-size.~%max-cache-size: ~a~%step-size: ~a~%" max-cache-size step-size))
-  (let ((time-cache 0)
-        (last-val (funcall default-source)))
-    (lambda (&optional (time-source default-source))
-      (let* ((time (abs (funcall time-source)))
-             (dif (- time last-val)))
-        (setf last-val time
-              time-cache (min max-cache-size (+ time-cache dif)))
-        (when (>= time-cache step-size)
-          (setf time-cache (- time-cache step-size))
-          (min 1.0 (float (/ time-cache step-size))))))))
+  (if allow-replace-source
+      ;;
+      (let ((time-cache 0)
+	    (last-val (funcall default-source)))
+	(lambda (&optional (time-source default-source))
+	  (let* ((time (abs (funcall time-source)))
+		 (dif (- time last-val)))
+	    (setf last-val time
+		  time-cache (min max-cache-size (+ time-cache dif)))
+	    (when (>= time-cache step-size)
+	      (setf time-cache (- time-cache step-size))
+	      (min 1.0 (float (/ time-cache step-size)))))))
+      ;;
+      (if (eq default-source *default-time-source*)
+	  (let ((time-cache 0)
+		(last-val (get-internal-real-time)))
+	    (lambda ()
+	      (let* ((time (get-internal-real-time))
+		     (dif (- time last-val)))
+		(setf last-val time
+		      time-cache (min max-cache-size (+ time-cache dif)))
+		(when (>= time-cache step-size)
+		  (setf time-cache (- time-cache step-size))
+		  (min 1.0 (float (/ time-cache step-size)))))))
+	  (let ((time-cache 0)
+		(last-val (funcall default-source)))
+	    (lambda ()
+	      (let* ((time (funcall default-source))
+		     (dif (- time last-val)))
+		(setf last-val time
+		      time-cache (min max-cache-size (+ time-cache dif)))
+		(when (>= time-cache step-size)
+		  (setf time-cache (- time-cache step-size))
+		  (min 1.0 (float (/ time-cache step-size))))))))))
 
 
 (def-t-expander each (delay &rest body)
@@ -340,10 +366,10 @@
         (expire-tests (remove nil (mapcan #'expire-test compiled)))
         (funcs (remove nil (mapcan #'funcs compiled))))
     (if (and (null start-tests) (null expire-tests) (null funcs))
-        `(let ((,*time-var* (,*default-time-source*)))
+        `(let ((,*time-var* (,*default-time-source-name*)))
            (declare (ignorable ,*time-var*))
            ,@(mapcar #'body compiled))
-        `(let ((,*time-var* (,*default-time-source*)))
+        `(let ((,*time-var* (,*default-time-source-name*)))
            (declare (ignorable ,*time-var*))
            (labels (,@start-tests
                     ,@expire-tests
@@ -374,7 +400,7 @@
               ,body))))
 
 (defun t-init-base (compiled)
-  (mapcar (lambda (x) `(,x (,*default-time-source*)))
+  (mapcar (lambda (x) `(,x (,*default-time-source-name*)))
           (remove nil (mapcar #'caar (mapcar #'init compiled))))) ;cddar
 
 (defmacro tlambda (args &body body)

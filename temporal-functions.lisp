@@ -11,6 +11,9 @@
 ;; {TODO} if user fires expired inside body of clause the effect should be
 ;;        local
 
+(defun mapcat (function &rest lists)
+  (reduce #'append (apply #'mapcar function lists) :initial-value nil))
+
 (defclass result ()
   ((closed-vars :initarg :closed-vars :accessor closed-vars)
    (start-test :initarg :start-test :accessor start-test)
@@ -55,15 +58,15 @@
 (defun merge-results (results &optional first-overrides-body-form)
   (let* ((result (empty-result)))
     (setf (closed-vars result)
-          (remove-duplicates (mapcan #'closed-vars results)))
+          (remove-duplicates (mapcat #'closed-vars results)))
     (setf (start-test result)
-          (remove-duplicates (mapcan #'start-test results)))
+          (remove-duplicates (mapcat #'start-test results)))
     (setf (expire-test result)
-          (remove-duplicates (mapcan #'expire-test results)))
+          (remove-duplicates (mapcat #'expire-test results)))
     (setf (funcs result)
-          (remove-duplicates (mapcan #'funcs results)))
+          (remove-duplicates (mapcat #'funcs results)))
     (setf (init result)
-          (remove-duplicates (mapcan #'init results)))
+          (remove-duplicates (mapcat #'init results)))
     (if first-overrides-body-form
         (setf (body result) (body (first results)))
         (setf (body result) `(progn ,@(mapcar #'body results))))
@@ -362,9 +365,9 @@
 
 
 (defun tbody (compiled)
-  (let ((start-tests (remove nil (mapcan #'start-test compiled)))
-        (expire-tests (remove nil (mapcan #'expire-test compiled)))
-        (funcs (remove nil (mapcan #'funcs compiled))))
+  (let ((start-tests (remove nil (mapcat #'start-test compiled)))
+        (expire-tests (remove nil (mapcat #'expire-test compiled)))
+        (funcs (remove nil (mapcat #'funcs compiled))))
     (if (and (null start-tests) (null expire-tests) (null funcs))
         `(let ((,*time-var* (,*default-time-source-name*)))
            (declare (ignorable ,*time-var*))
@@ -405,8 +408,8 @@
 
 (defmacro tlambda (args &body body)
   (let ((compiled (tcompile body)))
-    `(let* (,@(mapcan #'closed-vars compiled))
-       (labels ,(reverse (mapcan #'init compiled))
+    `(let* (,@(mapcat #'closed-vars compiled))
+       (labels ,(reverse (mapcat #'init compiled))
          (let ((func (lambda ,args ,(tbody compiled))))
            ,@(t-init-base compiled)
            func)))))
@@ -414,8 +417,8 @@
 (defmacro defun-t (name args &body body)
   (unless name (error "temporal function must have name"))
   (let ((compiled (tcompile body)))
-    `(let ,(remove nil (mapcan #'closed-vars compiled))
-       (labels ,(reverse (remove nil (mapcan #'init compiled)))
+    `(let ,(remove nil (mapcat #'closed-vars compiled))
+       (labels ,(reverse (remove nil (mapcat #'init compiled)))
          (defun ,name ,args ,(tbody compiled))
          ,@(t-init-base compiled)
          ',name))))

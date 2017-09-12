@@ -18,9 +18,9 @@
 
   (defun update (&optional pool)
     (let* ((pool (or pool entries))
-	   (entries (temporal-func-pool-funcs pool))
-	   (last entries)
-	   (current (cdr entries)))
+       (entries (temporal-func-pool-funcs pool))
+       (last entries)
+       (current (cdr entries)))
       (loop :until (null current) :do
          (if (restart-case (expiredp (funcall (car current)))
                (remove-managed-tfunction () t)) ;; {TODO} what is this?
@@ -34,16 +34,16 @@
   (defun add (item &optional pool)
     (let* ((pool (or pool entries)))
       (setf (temporal-func-pool-funcs pool)
-	    (append (temporal-func-pool-funcs pool)
-		    (list item)))
+        (append (temporal-func-pool-funcs pool)
+            (list item)))
       item))
 
   (defun release (item &optional pool)
     (let* ((pool (or pool entries)))
       (setf (temporal-func-pool-funcs pool)
-	    (delete item (temporal-func-pool-funcs pool)))))
+        (delete item (temporal-func-pool-funcs pool)))))
 
   (defun clean (&optional pool)
     (let* ((pool (or pool entries)))
       (setf (temporal-func-pool-funcs pool)
-	    (list t)))))
+        (list t)))))

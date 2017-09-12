@@ -9,21 +9,21 @@
            :hours
 
            :tlambda
-	   :defun-t
+       :defun-t
            :before
            :after
            :between
            :each
            :then
            :repeat
-	   :once
+       :once
            :whilst
            :%progress%
            :signal-expired
            :expiredp
            :expiredp+
-	   :local-reset
-	   :skip-step
+       :local-reset
+       :skip-step
 
            :make-stepper))
 

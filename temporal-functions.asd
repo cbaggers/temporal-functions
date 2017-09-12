@@ -5,9 +5,9 @@
   :author "Chris Bagley <techsnuffle@gmail.com>"
   :license "2 Clause BSD"
   :serial t
-  :depends-on (#:macroexpand-dammit)
+  :depends-on (#:trivial-macroexpand-all)
   :components ((:file "package")
-	       (:file "helpers")
+               (:file "helpers")
                (:file "units")
                (:file "temporal-functions")
                (:file "tiny-time-manager")))

@@ -392,7 +392,7 @@
 
 (defun tcompile (body)
   (mapcar #'process-t-body
-          (macroexpand-dammit:macroexpand-dammit
+          (fn::macroexpand-dammit
            `(macrolet ((before (&body b) `(:before ,@b))
                        (after (&body b) `(:after ,@b))
                        (then (&body b) `(:then ,@b))
